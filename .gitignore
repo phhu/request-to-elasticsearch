@@ -1,0 +1,5 @@
+node_modules
+config
+config/_auth.json
+out
+sample
