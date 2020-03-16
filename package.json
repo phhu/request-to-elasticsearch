@@ -1,18 +1,21 @@
 {
   "name": "request-to-elasticsearch",
   "version": "0.0.1",
-  "description": "",
+  "description": "For bulk streaming from HTTP requests to elastic search",
   "main": "requestToElasticSearch.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["elasticsearch"],
+  "keywords": [
+    "elasticsearch"
+  ],
   "author": "phhu",
   "license": "ISC",
   "dependencies": {
     "elasticsearch": "^16.6.0",
     "elasticsearch-streams": "0.0.10",
     "p-limit": "^2.2.2",
+    "puppeteer": "^2.1.1",
     "ramda": "^0.26.1",
     "ramda-adjunct": "^2.25.0",
     "request": "^2.88.2",

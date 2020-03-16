@@ -7,7 +7,7 @@ const {toCamelCase} = require('./utils');
 const UrlAssembler = require('url-assembler');
 
 // see https://support.atlassian.com/jira-software-cloud/docs/advanced-search-reference-jql-fields/
-const makeReq = ({
+const makeReq = ({      
   startAt = 0, 
   maxResults = 50, 
   updatedSince = process.argv[3] || "-24h", 
@@ -32,8 +32,10 @@ module.exports = (config = {}) => ({
   ,index:'bugs'
   ,idFromDoc: propOr('fakeId','key')
   ,limit: 60
-  //,parseResponse: JSON.parse    //JSON.parse is default: but could override
+  //,parseResponse: JSON.parse    //JSON.parse is default: but could overridden
   // return a request object. See https://www.npmjs.com/package/request-promise
+  //,requestor: rp       // something that takes an object and returns a promise of data
+    // require('../puppet').getData({})  is an alternative requestor using chromium
   ,initialRequest: makeReq(config)
   ,getNextRequests: req => ifElse(
     res => (res.startAt + res.maxResults < res.total) ,    

@@ -82,7 +82,7 @@ const checkIfDone = (label) => {
 const runRequest = req => pipe(
   tap(req => stats.requests.push(req.uri)),
   tap(req => stats.requestsSent += 1),
-  req => limit(rp,req),   //encodeURI(url)
+  req => limit((config.requestor || rp),req),   //encodeURI(url)
   then(pipe(       // res passes through this
     (config.parseResponse || JSON.parse),
     //tap(writeFile('out/res.json')),
