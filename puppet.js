@@ -1,13 +1,12 @@
 /** 
  * run chromium for data extract - useful when you can't sign in otherwise (two factor auth etc)
- * You should run this: 
+ * You should run chromium with debugging port open, e.g.: 
  * C:\ProgramData\chocolatey\bin\chrome.exe --remote-debugging-port=9222
  * Then send e.g. {uri: 'http://someUrl/data.json'} to require('./puppet').getData({})
  * getData returns a promise of data (as text - run JSON.parse on it as necessary)
  */
 
 const puppeteer = require('puppeteer');
-
 
 const getData = ({
   waitOptions= {
@@ -16,18 +15,22 @@ const getData = ({
   },
   puppeteerOptions = {
     browserURL: 'http://localhost:9222',
-  } 
+  },
+  networkEnableOptions = {
+    maxResourceBufferSize: 1024 * 1204 * 100,
+    maxTotalBufferSize: 1024 * 1204 * 200,
+  },
+  extraHttpHeaders = {
+    'prefer':'odata.include-annotations=*'
+  }
 }={}) => ({
   uri,     // =defaultUri
 }={}) => new Promise(async(resolve,reject)=>{
   //const browser = await puppeteer.launch(opts2) 
   const browser = await puppeteer.connect(puppeteerOptions); 
   const page = await browser.newPage();
-  page.setExtraHTTPHeaders({'prefer':'odata.include-annotations=*'});
-  await page._client.send('Network.enable', {
-    maxResourceBufferSize: 1024 * 1204 * 100,
-    maxTotalBufferSize: 1024 * 1204 * 200,
-  });
+  page.setExtraHTTPHeaders(extraHttpHeaders);
+  await page._client.send('Network.enable', networkEnableOptions);
   page.on('response', async response => {
     console.log('Chromium got response', response._url);
     //const data = await response.json();     // this is parsed json
@@ -43,7 +46,6 @@ const getData = ({
 module.exports = {
     getData
 };
-
 
 /*
 const width = 1400, height=1000;
