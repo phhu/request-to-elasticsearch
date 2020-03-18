@@ -8,7 +8,7 @@
 
 const puppeteer = require('puppeteer');
 
-const getData = ({
+module.exports = ({
   waitOptions= {
     waitUntil:'networkidle0', 
     timeout: 0,
@@ -43,9 +43,7 @@ const getData = ({
   //await browser.close();
 });
 
-module.exports = {
-    getData
-};
+
 
 /*
 const width = 1400, height=1000;

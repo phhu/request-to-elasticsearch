@@ -13,11 +13,6 @@ console.log(
 const limit = require('p-limit')(config.limit);
 const rp = require('request-promise-native');
 
-// set up stream for bulk writing to ES
-const elasticsearch = require('elasticsearch');
-const client = new elasticsearch.Client(config.elasticsearch);
-const {WritableBulk,TransformToBulk} = require('elasticsearch-streams');
-
 const stats = {
   itemsFound:0,
   itemsSentForUpload: 0,
@@ -34,50 +29,42 @@ const shortStats = ()=> evolve({
   results:last,requests:last
 },stats);
 
-const handleEsResult = (err,resp) => {
-  if (err){console.err(err)}
-  stats.batchesUploaded += 1;
-  stats.itemsUploaded += resp.items.length;
-  stats.results = stats.results.concat(resp.items.map(o=>({
+
+const handleResult = (err,resp) => {
+  const getResultItems = out.getResultItems || propOr([],'items');
+  const resultMapping = out.resultMapping || (r => r.items.map(o=>({
     id:o.index._id,
     result: o.index.result
   })));
+  
+  if (err){console.error("handleResult",err)}
+  //console.log("resp",JSON.stringify(resp,null,2));
+  items = getResultItems(resp);
+  stats.batchesUploaded += 1;
+  stats.itemsUploaded += items.length;
+  stats.results = stats.results.concat(resultMapping(resp));
   console.log(
-    "handling ES result: batch:",stats.batchesUploaded, 
-    "items: ", resp.items.length, 
-    shortStats(),
-    //stats,
+    "handling result: batch:",stats.batchesUploaded, 
+    "items: ", items.length, 
+    //shortStats(),
+    stats,
     //resp.items.map(o=>o.index._id + ":" + o.index.result).join(" ")
   );
-  checkIfDone("after handleEsResult");
+  checkIfDone("after handleResult");
 }
-const ws = new WritableBulk((bulkCmds, callback)=> client.bulk({
-  index : config.index,
-  type  : config.esType || '_doc',
-  body  : bulkCmds,
-}, (err,resp)=>{
-  callback(err,resp);
-  handleEsResult(err,resp);
-}));
-const toBulk = new TransformToBulk(doc => ({ _id: config.idFromDoc(doc) })); 
-toBulk
-  .pipe(ws)
-  .on('finish', ()=>console.log("finished"))
-;
-
 const checkIfCompletedUsingStats = ()=> (
   stats.itemsFound === stats.itemsSentForUpload && 
   stats.requestsSent ===stats.requestsResolved
 )
-
 const checkIfDone = (label) => {
   const done = checkIfCompletedUsingStats();
-  //console.log("checkIfDone:", label,done);  // , shortStats()
   if (done){
     console.log("Done, so ending bulk.",label, done);
-    toBulk.end()
+    out.close();
   }
 }
+
+const out = require('./outputs/neo4j')(config)({handleResult});
 
 const runRequest = req => pipe(
   tap(req => stats.requests.push(req.uri)),
@@ -117,7 +104,7 @@ const uploadItem = req => res => pipe(
   then(pipe(
     //tapper("modified"),
     //tap(writeFile('out/modified.json')),
-    item=>toBulk.write(item),
+    out.sendForUpload
   )),
   otherwise(handleError("error uploading item"))
 );
