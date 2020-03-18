@@ -5,7 +5,7 @@
 RETURN michael.name, michael.bornIn
 */
 const neo4j = require('neo4j-driver');
-const {propOr,pipe,map,join} = require('ramda');
+const {propOr,pipe,map,join,length} = require('ramda');
 //const {map,concat} = require('ramda');
 
 module.exports = ({
@@ -24,19 +24,20 @@ module.exports = ({
   return {
     sendForUpload: item => {
       const session = driver.session(sessionConfig);
-      return session
+      session
         .run(cypher,item)
         .then(res => handleResult(null,res))
         .catch(err=> handleResult(err,null))
         .finally(x=>session.close())
       ;
+      return true;  // return now so flow continues
     }
       ,
     close: async (callback) => {
-
+      console.log("closing neo4j driver");
       return driver.close();  
     },
-    getResultItems: propOr([],'records'),
+    getItemCount: pipe(propOr([],'records'),length),
     resultMapping: pipe(
       propOr([],'records'),
       map(pipe(

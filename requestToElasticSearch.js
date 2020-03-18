@@ -1,6 +1,12 @@
 // FP using ramda
-const {map,pipe,tap,last,evolve,then,otherwise} = require('ramda');
-const {handleError, tapper, forceToPromise, writeFile} = require('./utils');
+const {
+  map,pipe,tap,last,evolve,then,otherwise,
+  inc,add,concat,length
+} = require('ramda');
+const {
+  handleError, tapper, forceToPromise, writeFile,
+  propArrayLength
+} = require('./utils');
 
 const configName = process.argv[2] || 'jiraSampleConfig';  
 const config = require('./' + configName)();    //config file handles other params
@@ -11,9 +17,9 @@ console.log(
 
 //use promise limit to prevent too many simultaneous requests
 const limit = require('p-limit')(config.limit);
-const rp = require('request-promise-native');
+//const rp = require('request-promise-native');
 
-const stats = {
+let stats = {     // let because we use evolve on this 
   itemsFound:0,
   itemsSentForUpload: 0,
   itemsUploaded:0,
@@ -31,27 +37,27 @@ const shortStats = ()=> evolve({
 
 
 const handleResult = (err,resp) => {
-  const getResultItems = out.getResultItems || propOr([],'items');
-  const resultMapping = out.resultMapping || (r => r.items.map(o=>({
-    id:o.index._id,
-    result: o.index.result
-  })));
-  
   if (err){console.error("handleResult",err)}
-  //console.log("resp",JSON.stringify(resp,null,2));
-  items = getResultItems(resp);
-  stats.batchesUploaded += 1;
-  stats.itemsUploaded += items.length;
-  stats.results = stats.results.concat(resultMapping(resp));
+
+  const resultMapping = out.resultMapping || propOr([],'items');
+  const getItemCount = out.getItemCount || pipe(resultMapping,length) ;
+
+  stats = evolve({
+    batchesUploaded: inc,
+    itemsUploaded: add(getItemCount(resp)),
+    results: concat(resultMapping(resp))
+  },stats);
+  
   console.log(
     "handling result: batch:",stats.batchesUploaded, 
-    "items: ", items.length, 
-    //shortStats(),
-    stats,
-    //resp.items.map(o=>o.index._id + ":" + o.index.result).join(" ")
+    // "items: ", items.length, 
+    shortStats(),
+    // "resp",JSON.stringify(resp,null,2)
+    //stats,
   );
   checkIfDone("after handleResult");
 }
+
 const checkIfCompletedUsingStats = ()=> (
   stats.itemsFound === stats.itemsSentForUpload && 
   stats.requestsSent ===stats.requestsResolved
@@ -59,17 +65,19 @@ const checkIfCompletedUsingStats = ()=> (
 const checkIfDone = (label) => {
   const done = checkIfCompletedUsingStats();
   if (done){
-    console.log("Done, so ending bulk.",label, done);
+    console.log("Done, so ending bulk.",label, done,shortStats());
     out.close();
   }
 }
 
-const out = require('./outputs/neo4j')(config)({handleResult});
+const outputter = config.output || require('./outputs/es');
+const out =  outputter({handleResult});   // 
+const requestor = (config.requestor || require('inputs/rp')({}) );
 
 const runRequest = req => pipe(
   tap(req => stats.requests.push(req.uri)),
   tap(req => stats.requestsSent += 1),
-  req => limit((config.requestor || rp),req),   //encodeURI(url)
+  req => limit(requestor,req),   //encodeURI(url)
   then(pipe(       // res passes through this
     (config.parseResponse || JSON.parse),
     //tap(writeFile('out/res.json')),

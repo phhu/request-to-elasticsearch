@@ -1,5 +1,7 @@
 const fs = require('fs');
-
+const {
+  tap, pipe, propOr,length
+} = require('ramda');
 module.exports = {
   handleError: tag => e=>console.error(tag,e),
   tapper: label => tap(x=>console.log(label,x)),
@@ -15,4 +17,5 @@ module.exports = {
     .replace(/^\w/, c => c.toLowerCase())
     .replace(/[^a-zA-Z0-9]/g, "")
   ,
+  propArrayLength: prop => pipe(propOr([],prop),length),
 }
