@@ -5,8 +5,23 @@
 RETURN michael.name, michael.bornIn
 */
 const neo4j = require('neo4j-driver');
-const {propOr,pipe,map,join,length} = require('ramda');
-//const {map,concat} = require('ramda');
+const {
+  add,inc,append,evolve, concat,  pick
+  //propOr,pipe,map,join,length
+} = require('ramda');
+const outputStats = require('../outputStats');
+
+const getResultSummary = res => {
+  try {
+    return res.records.map(r=>pick(
+      ['id','key','name','hash'],
+      r._fields[0].properties,
+    ));
+  } catch (e){
+    console.error("error extracting neo4j value",e);
+    return [e];
+  }
+}
 
 module.exports = ({
   address = 'neo4j://localhost',
@@ -17,37 +32,37 @@ module.exports = ({
   },
   cypher ='',
 }={}) => ({
-  handleResult = (err, resp) => {} ,
+  handleResult = (err, resp) => {},
 }={}) => {
   const driver = neo4j.driver(address, auth);
-
+  let stats = outputStats.getStats();
+  const sessionPromises = [];
   return {
     sendForUpload: item => {
+      //console.log("neo4j for upload",item);
       const session = driver.session(sessionConfig);
-      session
+      sessionPromises.push(session
         .run(cypher,item)
-        .then(res => handleResult(null,res))
+        .then(res => {
+          stats = evolve({
+            itemsUploaded: add(res.records.length),
+            batchesUploaded: inc,
+            results: concat(getResultSummary(res)),
+          }, stats);
+          return handleResult(null,res);
+        })
         .catch(err=> handleResult(err,null))
         .finally(x=>session.close())
-      ;
+      );
       return true;  // return now so flow continues
-    }
-      ,
-    close: async (callback) => {
-      console.log("closing neo4j driver");
-      return driver.close();  
     },
-    getItemCount: pipe(propOr([],'records'),length),
-    resultMapping: pipe(
-      propOr([],'records'),
-      map(pipe(
-        propOr([],'_fields'),
-        map(pipe(
-          propOr({},'properties'),
-          x=>({id:x.id}),  
-        )),
-        //join(' | '),
-      )),
-    ),
+    close: async (callback) => {
+      Promise.all(sessionPromises)
+        .then(res=>{
+          console.log("closing neo4j driver" , outputStats.shortStats(stats));
+          return driver.close();
+        })  
+    },
+    getStats: ()=>stats,
   };
 };

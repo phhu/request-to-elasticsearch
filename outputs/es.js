@@ -1,9 +1,20 @@
+/** ES steams used to collect up input
+ * generally it's a bit complex owing to mixture 
+ * of promises and streams. But it works :-)
+ *
+ */
+
 const elasticsearch = require('elasticsearch');
 const {WritableBulk,TransformToBulk} = require('elasticsearch-streams');
 const {
-  propOr, evolve, add, concat
+  evolve, add, concat, inc
 } = require('ramda');
+const outputStats = require('../outputStats');
 
+const resultMapping = r => r.items.map(o=>({
+  id:o.index._id,
+  result: o.index.result
+}));
 
 module.exports = ({
   index,
@@ -13,39 +24,48 @@ module.exports = ({
 }={}) => ({
   handleResult = (err, resp) => {} 
 }={}) => {
-
+  let stats = outputStats.getStats();
   const client = new elasticsearch.Client(esConfig);
-  const ws = new WritableBulk((bulkCmds, callback)=> client.bulk({
-    index,
-    type: esType,
-    body: bulkCmds,
-  }, (err,resp) => {
-    callback(err,resp);
-    handleResult(err,resp);   
-  })); 
+  const reqPromises = [];   // stream will finish before bulks are done by ES client, so track
+  const ws = new WritableBulk(
+    (bulkCmds, callback)=> reqPromises.push(
+      client.bulk({
+        index,
+        type: esType,
+        body: bulkCmds,
+      }).then(res => {
+        callback(null,res);
+        stats = evolve({
+          itemsUploaded: add(res.items.length),
+          batchesUploaded: inc,
+          results: concat(resultMapping(res)),
+        }, stats);
+        handleResult(null,res);   
+      }).catch(err => {
+        callback(err,null);
+        handleResult(err,[]); 
+      })
+    )
+  ); 
   const toBulk = new TransformToBulk(doc => ({ _id: idFromDoc(doc) })); 
-  toBulk
-    .pipe(ws)
-    .on('finish', ()=>console.log("finished"))
-  ;
+  toBulk.pipe(ws);
+  // on finish, need to check that all promises have resolved, as these are beyond the stream
+  ws.on('finish', ()=>{
+    Promise.all(reqPromises).then(res => {
+      console.log(
+        "Finished ES toBulk",
+        //stats,
+        outputStats.shortStats(stats)
+      )
+    });
+  });
 
   return {
     sendForUpload: item=> toBulk.write(item),
     close: ()=> {
-      console.log("closing es toBulk");
       toBulk.end();
     },
-    //getItemCount: pipe(propOr([],'items'),length),
-    resultMapping: r => r.items.map(o=>({
-      id:o.index._id,
-      result: o.index.result
-    })),
-    /*updateStats: resp => stats => {
-      const items = propOr([],'items');
-      return evolve({
-        itemsUploaded: add(items.length) 
-      },stats)
-    },*/
+    getStats: ()=>stats,
   };
 };
 

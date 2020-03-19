@@ -1,7 +1,7 @@
 // FP using ramda
 const {
   map,pipe,tap,last,evolve,then,otherwise,
-  inc,add,concat,length
+  inc,add,concat,length, forEach, slice,
 } = require('ramda');
 const {
   handleError, tapper, forceToPromise, writeFile,
@@ -12,72 +12,62 @@ const configName = process.argv[2] || 'jiraSampleConfig';
 const config = require('./' + configName)();    //config file handles other params
 console.log(
   "config file: ", configName, 
-  "Base URL: ", config.initialRequest.uri, 
+  "Base URL: ", config.initialRequest.uri || config.initialRequest.cmd, 
 "\n");
 
 //use promise limit to prevent too many simultaneous requests
 const limit = require('p-limit')(config.limit);
-//const rp = require('request-promise-native');
 
 let stats = {     // let because we use evolve on this 
-  itemsFound:0,
-  itemsSentForUpload: 0,
-  itemsUploaded:0,
-  requestsSent:0,
-  requestsResolved:0,
-  batchesUploaded: 0,
-  //errors:[],
-  results:[],
   requests:[],
+  requestsSent:0,                     // t2
+  requestsResolved:0,                 // t2  
+  itemsFound:0,                       // t1
+  itemsSentForUpload: 0,              // t1
 };
 
 const shortStats = ()=> evolve({
-  results:last,requests:last
+  //results:last,
+  requests:slice(-2,0),
 },stats);
+const vShortStats = ()=> 
+`${stats.requestsSent}/${stats.requestsResolved},${stats.itemsSentForUpload}/${stats.itemsFound}` 
 
+let lastStats = '';
+const printStatsIfChanged = () => {
+  if (lastStats != vShortStats()){
+    lastStats = vShortStats();
+    process.stdout.write(lastStats + ' ');
+  }
+};
 
 const handleResult = (err,resp) => {
   if (err){console.error("handleResult",err)}
-
-  const resultMapping = out.resultMapping || propOr([],'items');
-  const getItemCount = out.getItemCount || pipe(resultMapping,length) ;
-
-  stats = evolve({
-    batchesUploaded: inc,
-    itemsUploaded: add(getItemCount(resp)),
-    results: concat(resultMapping(resp))
-  },stats);
-  
-  console.log(
-    "handling result: batch:",stats.batchesUploaded, 
-    // "items: ", items.length, 
-    shortStats(),
-    // "resp",JSON.stringify(resp,null,2)
-    //stats,
-  );
   checkIfDone("after handleResult");
 }
 
+let closeAlreadyRequested = false;
 const checkIfCompletedUsingStats = ()=> (
   stats.itemsFound === stats.itemsSentForUpload && 
   stats.requestsSent ===stats.requestsResolved
 )
 const checkIfDone = (label) => {
-  const done = checkIfCompletedUsingStats();
-  if (done){
-    console.log("Done, so ending bulk.",label, done,shortStats());
-    out.close();
+  printStatsIfChanged();
+  if (!closeAlreadyRequested && checkIfCompletedUsingStats()){
+    console.log("\nCheckIfDone true, so closing:",label);
+    forEach(o=>o.close(),outputs);
+    closeAlreadyRequested = true;
   }
 }
 
-const outputter = config.output || require('./outputs/es');
-const out =  outputter({handleResult});   // 
 const requestor = (config.requestor || require('inputs/rp')({}) );
+const outputs = config.outputs.map(o => o({handleResult}));
 
 const runRequest = req => pipe(
-  tap(req => stats.requests.push(req.uri)),
+  tap(req => console.log("Requested: ",req.uri || req.cmd)),
+  tap(req => stats.requests.push('' + (req.uri || req.cmd))),
   tap(req => stats.requestsSent += 1),
-  req => limit(requestor,req),   //encodeURI(url)
+  req => limit(requestor,req), 
   then(pipe(       // res passes through this
     (config.parseResponse || JSON.parse),
     //tap(writeFile('out/res.json')),
@@ -91,7 +81,6 @@ const runRequest = req => pipe(
           tap(x=>stats.itemsSentForUpload += 1),
           tap(x=>checkIfDone("afterUploadItem")),
         )),
-
       )),
     )(res)),
     tap(pipe(      // get more requests
@@ -112,7 +101,7 @@ const uploadItem = req => res => pipe(
   then(pipe(
     //tapper("modified"),
     //tap(writeFile('out/modified.json')),
-    out.sendForUpload
+    x=>forEach(o=>o.sendForUpload(x),outputs),
   )),
   otherwise(handleError("error uploading item"))
 );
