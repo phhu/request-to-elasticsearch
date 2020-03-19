@@ -20,7 +20,7 @@ module.exports = ({
     stats = evolve({
       itemsUploaded: inc,
       batchesUploaded: inc,
-      results: append(line.substr(0,250)+"..."),
+      results: append((line).substr(0,250)),
     },stats);
     handleResult(null,[line]);   
   })

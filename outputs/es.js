@@ -1,7 +1,7 @@
-/** ES steams used to collect up input
- * generally it's a bit complex owing to mixture 
+/** 
+ * ES steams used to collect up input.
+ * Generally it's a bit complex owing to mixture 
  * of promises and streams. But it works :-)
- *
  */
 
 const elasticsearch = require('elasticsearch');

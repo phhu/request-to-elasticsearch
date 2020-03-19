@@ -32,7 +32,7 @@ module.exports = ({
   page.setExtraHTTPHeaders(extraHttpHeaders);
   await page._client.send('Network.enable', networkEnableOptions);
   page.on('response', async response => {
-    console.log('Chromium got response', response._url);
+    //console.log('Chromium got response', response._url);
     //const data = await response.json();     // this is parsed json
     resolve(response.text());
     //fs.writeFileSync(`${__dirname}/output/response.json`, data)
