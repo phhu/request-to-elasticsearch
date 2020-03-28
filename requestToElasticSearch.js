@@ -63,14 +63,16 @@ const checkIfDone = (label) => {
 const requestor = (config.requestor || require('inputs/rp')({}) );
 const outputs = config.outputs.map(o => o({handleResult}));
 
+const reqToString = req => (req.uri || req.cmd || req.file || req.toString());
+
 const runRequest = req => pipe(
-  tap(req => console.log("Requested: ",(req.uri || req.cmd).substr(0,200)  )),
-  tap(req => stats.requests.push('' + (req.uri || req.cmd))),
+  tap(req => console.log("Requesting: ",reqToString(req).substr(0,200)  )),
+  tap(req => stats.requests.push('' + reqToString(req))),
   tap(req => stats.requestsSent += 1),
   req => limit(requestor,req), 
   then(pipe(       // res passes through this
     (config.parseResponse || JSON.parse),
-    tap(writeFile('out/res.json')),
+    //tap(writeFile('out/res.json')),
     tap(res=> pipe(    // get items
       config.getItems(req),
       //tapper("got items"),

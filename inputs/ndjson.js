@@ -7,6 +7,7 @@ const
 // should possibly use streams in main process rather than promises?
 // but item and next request extraction potentially needs whole lot.
 // Maybe make it optional to use steams where possible?
+// or us steam in main code and then allow configs to convert if necessary
 
 module.exports = ({
   // no config at moment

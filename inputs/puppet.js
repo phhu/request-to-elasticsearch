@@ -2,8 +2,8 @@
  * run chromium for data extract - useful when you can't sign in otherwise (two factor auth etc)
  * You should run chromium with debugging port open, e.g.: 
  * C:\ProgramData\chocolatey\bin\chrome.exe --remote-debugging-port=9222
- * Then send e.g. {uri: 'http://someUrl/data.json'} to require('./puppet').getData({})
- * getData returns a promise of data (as text - run JSON.parse on it as necessary)
+ * Then send e.g. {uri: 'http://someUrl/data.json'} to require('./puppet')({})
+ * returns a promise of data (as text - run JSON.parse on it as necessary)
  */
 
 const puppeteer = require('puppeteer');

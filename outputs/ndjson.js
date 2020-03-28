@@ -32,12 +32,7 @@ module.exports = ({
 
   return {
     sendForUpload: item=> serialize.write(item),
-    close: ()=> {
-
-      serialize.end();
-    },
-    //getItemCount: always(1), 
-    //resultMapping: map(r=>r.substr(0,60)+"..."),
-    getStats: ()=>stats
+    close: ()=> serialize.end(),
+    getStats: ()=>stats,
   };
 };
