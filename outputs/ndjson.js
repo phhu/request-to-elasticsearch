@@ -1,13 +1,14 @@
 const ndjson = require('ndjson');
 const fs = require('fs');
 const outputStats = require('../outputStats');
+const JSONStream = require('JSONStream');
 
 const {
   always, identity, map, evolve, inc,append
 } = require('ramda');
 
 module.exports = ({
-  filename = "out/test.ndjson"
+  filename = "out/test.json"
 }={}) => ({
   handleResult = (err, resp) => {} 
 }={}) => {
@@ -15,6 +16,8 @@ module.exports = ({
   let stats = outputStats.getStats();
 
   const serialize = ndjson.serialize();
+  //const serialize = JSONStream.stringify(false);   // seems not to handle trailing lines well
+  
   serialize.on('data', function(line) {
     //console.log("data",line);
     stats = evolve({
@@ -33,6 +36,6 @@ module.exports = ({
   return {
     sendForUpload: item=> serialize.write(item),
     close: ()=> serialize.end(),
-    getStats: ()=>stats,
+    getStats: ({short=false})=> short? outputStats.shortStats(stats):stats
   };
 };

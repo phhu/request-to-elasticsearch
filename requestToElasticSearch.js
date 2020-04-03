@@ -1,7 +1,7 @@
 // FP using ramda
 const {
   map,pipe,tap,last,evolve,then,otherwise,
-  inc,add,concat,length, forEach, slice,
+  inc,add,concat,length, forEach, slice,ifElse, defaultTo,
 } = require('ramda');
 const {
   handleError, tapper, forceToPromise, writeFile,
@@ -16,7 +16,7 @@ console.log(
 "\n");
 
 //use promise limit to prevent too many simultaneous requests
-const limit = require('p-limit')(config.limit);
+const limit = require('p-limit')(config.limit);   // config.limit
 
 let stats = {     // let because we use evolve on this 
   requests:[],
@@ -43,6 +43,7 @@ const printStatsIfChanged = () => {
 
 const handleResult = (err,resp) => {
   if (err){console.error("handleResult",err)}
+  //forEach(o=>{console.log(o.getStats({short:true}))},outputs);
   checkIfDone("after handleResult");
 }
 
@@ -63,16 +64,47 @@ const checkIfDone = (label) => {
 const requestor = (config.requestor || require('inputs/rp')({}) );
 const outputs = config.outputs.map(o => o({handleResult}));
 
+//fake response could just be json, taken after the parser?
+config.parseResponse = config.parseResponse || (x=>JSON.parse(x));
+const fakeRes = config.parseResponse(defaultTo( `[]`,config.fakeResponse));
 const reqToString = req => (req.uri || req.cmd || req.file || req.toString());
 
-const runRequest = req => pipe(
-  tap(req => console.log("Requesting: ",reqToString(req).substr(0,200)  )),
+
+const getNextReqs = req=> pipe(
+  tap(pipe(      // get more requests
+    config.getNextRequests(req),
+    map(x=>(limit(runRequest,x))),
+    /*map(nextReq => limit(
+      (x)=>Promise.resolve(
+        runRequest(x).then(()=>console.log(1))
+      )
+      ,nextReq
+    )),*/
+  )),
+);
+
+// wrapping runRequest in promise.resolve helps to prevent stack overflow / allows limiting
+const runRequest = req => Promise.resolve(pipe(     //req flows through this
+  //tap(req => console.log("Starting request: ",reqToString(req).substr(0,200)  )),
+  //tap(req => printStatsIfChanged()),
   tap(req => stats.requests.push('' + reqToString(req))),
   tap(req => stats.requestsSent += 1),
-  req => limit(requestor,req), 
+  tap(req => ifElse(
+    ()=>config.makeNextRequestBeforeResponseReceived,
+    req => getNextReqs(req)(fakeRes),
+    ()=>{},
+  )(req)),
+  requestor,
+  //req => limit(requestor,req), 
   then(pipe(       // res passes through this
+    // in some cases, don't need to bother getting res for next req... 
+    // need to accomoate this somehow.
+    // maybe a fake res param too in case of error
     (config.parseResponse || JSON.parse),
     //tap(writeFile('out/res.json')),
+    tap(x=>stats.requestsResolved += 1),
+    //tap(x=>checkIfDone("afterReqResponse")),
+    //tap(x=>checkIfDone("afterReqResolved")),
     tap(res=> pipe(    // get items
       config.getItems(req),
       //tapper("got items"),
@@ -85,15 +117,27 @@ const runRequest = req => pipe(
         )),
       )),
     )(res)),
-    tap(pipe(      // get more requests
+    ifElse(
+      ()=>config.makeNextRequestBeforeResponseReceived,
+      ()=>()=>{},
+      getNextReqs(req),
+    ),
+    /*tap(pipe(      // get more requests
       config.getNextRequests(req),
       map(runRequest),
     )),
     tap(x=>stats.requestsResolved += 1),
-    tap(x=>checkIfDone("afterReqResolved")),
+    tap(x=>checkIfDone("afterReqResolved")),*/
   )),
-  otherwise(handleError("error in runRequest")),
-)(req);
+  otherwise(err => {
+    stats.requestsResolved += 1;
+    checkIfDone("afterReqError")
+    //handleError("error in runRequest")(err.message.substring(0,100) + ' '+  req.uri);
+    if(!config.makeNextRequestBeforeResponseReceived){
+      getNextReqs(req)(fakeRes)
+    }
+  }),
+)(req));
 
 const uploadItem = req => res => pipe(
   //tapper("premod"),

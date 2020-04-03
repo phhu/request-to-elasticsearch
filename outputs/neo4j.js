@@ -63,6 +63,6 @@ module.exports = ({
           return driver.close();
         })  
     },
-    getStats: ()=>stats,
+    getStats: ({short=false})=>short? outputStats.shortStats(stats):stats
   };
 };

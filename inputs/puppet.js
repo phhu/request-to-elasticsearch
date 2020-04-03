@@ -8,10 +8,15 @@
 
 const puppeteer = require('puppeteer');
 
+/*const puppeteerOptions = {
+  browserURL: 'http://localhost:9222',
+};*/
+
+let browser; 
 module.exports = ({
   waitOptions= {
-    waitUntil:'networkidle0', 
-    timeout: 0,
+    waitUntil:'networkidle2', 
+    timeout: 60 *1000,
   },
   puppeteerOptions = {
     browserURL: 'http://localhost:9222',
@@ -23,25 +28,35 @@ module.exports = ({
   extraHttpHeaders = {
     'prefer':'odata.include-annotations=*'
   }
-}={}) => ({
-  uri,     // =defaultUri
-}={}) => new Promise(async(resolve,reject)=>{
-  //const browser = await puppeteer.launch(opts2) 
-  const browser = await puppeteer.connect(puppeteerOptions); 
-  const page = await browser.newPage();
-  page.setExtraHTTPHeaders(extraHttpHeaders);
-  await page._client.send('Network.enable', networkEnableOptions);
-  page.on('response', async response => {
-    //console.log('Chromium got response', response._url);
-    //const data = await response.json();     // this is parsed json
-    resolve(response.text());
-    //fs.writeFileSync(`${__dirname}/output/response.json`, data)
-  })
-  await page.goto(uri, waitOptions);
-  await page.close();
-  await browser.disconnect(); // don't want to close to preserve cookie. Could prob do this 
-  //await browser.close();
-});
+}={}) => {
+  
+  return async ({
+    uri,     // =defaultUri
+  }={}) => {
+    browser = browser || await puppeteer.connect(puppeteerOptions); 
+    return new Promise(async(resolve,reject)=>{
+      //const browser = await puppeteer.launch(opts2) 
+      const page = await browser.newPage();
+      page.setExtraHTTPHeaders(extraHttpHeaders);
+      await page._client.send('Network.enable', networkEnableOptions);
+      page.on('response', async response => {
+        //console.log('Chromium got response', response._url);
+        //const data = await response.json();     // this is parsed json
+        resolve(response.text());
+        //await page.close();
+        //fs.writeFileSync(`${__dirname}/output/response.json`, data)
+      })
+      try{
+        await page.goto(uri, waitOptions);
+      } catch(e){
+        console.error("page goto",e);
+      }
+      await page.close();
+      //await browser.disconnect(); // don't want to close to preserve cookie. Could prob do this 
+      //await browser.close();
+    })
+  }
+};
 
 
 
