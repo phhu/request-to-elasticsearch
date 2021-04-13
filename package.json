@@ -18,7 +18,7 @@
     "elasticsearch": "^16.6.0",
     "elasticsearch-streams": "0.0.10",
     "fallback-plan": "^1.1.0",
-    "get-ip-range": "^2.1.0",
+    "get-ip-range": "^4.0.0",
     "msnodesqlv8": "^1.0.1",
     "mssql": "^6.2.0",
     "ndjson": "^1.5.0",
