@@ -23,7 +23,7 @@
     "mssql": "^6.2.0",
     "ndjson": "^1.5.0",
     "neo4j-driver": "^4.0.2",
-    "node-fetch": "^2.6.0",
+    "node-fetch": "^3.1.1",
     "p-limit": "^2.2.2",
     "promise-any": "^0.2.0",
     "promise-fallback": "^1.0.0",
